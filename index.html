@@ -87,8 +87,10 @@
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);
     background:var(--accent);color:#fff;padding:13px 22px;border-radius:999px;font-weight:700;
-    box-shadow:0 12px 30px rgba(108,92,231,.35);opacity:0;transition:.3s;z-index:50}
+    box-shadow:0 12px 30px rgba(108,92,231,.35);opacity:0;transition:.3s;z-index:50;display:flex;align-items:center;gap:14px}
   .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .toast-btn{background:rgba(255,255,255,.25);border:0;color:#fff;font-weight:700;padding:5px 13px;border-radius:999px;cursor:pointer;font-size:13px;white-space:nowrap}
+  .toast-btn:hover{background:rgba(255,255,255,.42)}
   .flash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:55;opacity:0}
   .flash.show{animation:pop 1.4s ease}
   .flash span{font-size:60px;font-weight:900;color:var(--accent);text-shadow:0 6px 26px rgba(108,92,231,.4)}
@@ -134,7 +136,7 @@
   <div class="lbgrid" id="lbGrid"></div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAction" class="toast-btn" style="display:none">Angre</button></div>
 <div class="flash" id="flash"><span id="flashText"></span></div>
 
 <!-- Hvem er du -->
@@ -265,15 +267,15 @@ function renderLogGrid(){
 
 async function logActivity(label){
   if (!me) return openPicker();
-  if (!configured) return toast("⚠️ Supabase ikke satt opp ennå", true);
+  if (!configured) return toast("⚠️ Supabase ikke satt opp ennå", { err: true });
   if (findAct(label)?.amount) return openAmount(label);
   await insertRow(label, ptsOf(label));
 }
-async function insertRow(label, points){
-  const { error } = await sb.from("activities").insert({ person: me, activity: label, points });
-  if (error) return toast("Feil: " + error.message, true);
+async function insertRow(label, points, msg){
+  const { data, error } = await sb.from("activities").insert({ person: me, activity: label, points }).select("id").single();
+  if (error) return toast("Feil: " + error.message, { err: true });
   if (label === "Salg") celebrate();
-  else toast(`${emojiOf(label)} ${label} logget for ${me}!`);
+  toast(msg || `${emojiOf(label)} ${label} logget`, { undoId: data && data.id });
   refresh();
 }
 
@@ -289,21 +291,35 @@ function openAmount(label){
 function closeAmount(){ document.getElementById("amountModal").classList.add("hidden"); pendingLabel = null; }
 async function confirmAmount(){
   const v = parseInt(document.getElementById("amountInput").value, 10);
-  if (!v || v <= 0) return toast("Skriv inn et gyldig antall", true);
+  if (!v || v <= 0) return toast("Skriv inn et gyldig antall", { err: true });
   const label = pendingLabel; closeAmount();
-  await insertRow(label, v);
-  toast(`🪙 ${nf(v)} tokens logget for ${me}!`);
+  await insertRow(label, v, `🪙 ${nf(v)} tokens logget`);
 }
 
 /* ---------- Feiring ---------- */
 let toastT, flashT;
-function toast(msg, err){
+function toast(msg, opts){
+  opts = opts || {};
   const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.style.background = err ? "#e74c3c" : "var(--accent)";
+  document.getElementById("toastMsg").textContent = msg;
+  const btn = document.getElementById("toastAction");
+  if (opts.undoId){
+    btn.style.display = "";
+    btn.onclick = () => { t.classList.remove("show"); clearTimeout(toastT); undoRow(opts.undoId); };
+  } else {
+    btn.style.display = "none";
+  }
+  t.style.background = opts.err ? "#e74c3c" : "var(--accent)";
   t.classList.add("show");
   clearTimeout(toastT);
-  toastT = setTimeout(() => t.classList.remove("show"), 2600);
+  toastT = setTimeout(() => t.classList.remove("show"), opts.undoId ? 6000 : 2600);
+}
+async function undoRow(id){
+  if (!id || !configured) return;
+  const { error } = await sb.from("activities").delete().eq("id", id);
+  if (error) return toast("Kunne ikke angre: " + error.message, { err: true });
+  toast("↩️ Fjernet igjen");
+  refresh();
 }
 function celebrate(){
   const f = document.getElementById("flash");
@@ -360,7 +376,7 @@ async function fetchRows(){
   const { data, error } = await sb.from("activities").select("*")
     .gte("created_at", start.toISOString()).lt("created_at", end.toISOString())
     .order("created_at", { ascending: false });
-  if (error){ toast("Feil ved henting: " + error.message, true); return []; }
+  if (error){ toast("Feil ved henting: " + error.message, { err: true }); return []; }
   return data || [];
 }
 
