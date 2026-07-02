@@ -37,6 +37,7 @@
 
   .statsrow{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:32px;align-items:stretch}
   .stat{flex:1 1 130px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(30,30,60,.04)}
+  .stat.mine{background:#f4f2fe;border-color:#ddd6fb}
   .stat-ic{width:34px;height:34px;border-radius:9px;background:#f3f2fd;display:grid;place-items:center;font-size:18px;margin-bottom:10px}
   .stat-num{font-size:28px;font-weight:800;line-height:1}
   .stat-lbl{font-weight:700;font-size:14px;margin-top:8px}
@@ -128,6 +129,10 @@
   <div id="setupBanner" class="banner hidden"></div>
 
   <div class="statsrow" id="statsRow"></div>
+
+  <h1 class="sec" id="mineHeading">Min statistikk</h1>
+  <p class="sub" id="mineSub">Dine egne tall</p>
+  <div class="statsrow" id="mineRow"></div>
 
   <h1 class="sec">Logg aktivitet</h1>
   <p class="sub">Trykk for å registrere — tavla oppdateres live</p>
@@ -471,6 +476,31 @@ function renderStats(kpiRows, funRows, tokenRows){
   document.getElementById("statsRow").innerHTML = html;
 }
 
+/* ---------- Min statistikk (egne tall) ---------- */
+function renderMine(kpiRows, funRows, tokenRows){
+  const head = document.getElementById("mineHeading");
+  const sub = document.getElementById("mineSub");
+  const row = document.getElementById("mineRow");
+  if (!me){ head.style.display = "none"; sub.style.display = "none"; row.style.display = "none"; return; }
+  head.style.display = ""; sub.style.display = ""; row.style.display = "";
+  sub.textContent = `Dine tall (${me}) · ${period === "week" ? "denne uken" : "denne måneden"}`;
+  let html = "";
+  CONFIG.ACTIVITIES.filter(a => a.board).forEach(a => {
+    let num, s;
+    if (a.amount){
+      num = nf(tokenRows.filter(r => r.person === me && r.activity === a.label).reduce((t, r) => t + (r.points || 0), 0));
+      s = "dine tokens";
+    } else {
+      num = kpiRows.filter(r => r.person === me && r.activity === a.label).length;
+      s = "dine";
+    }
+    html += `<div class="stat mine"><div class="stat-ic">${a.emoji}</div><div class="stat-num">${num}</div><div class="stat-lbl">${a.short || a.label}</div><div class="stat-sub">${s}</div></div>`;
+  });
+  const kolaMine = funRows.filter(r => r.person === me).length;
+  html += `<div class="stat mine"><div class="stat-ic">🥤</div><div class="stat-num">${kolaMine}</div><div class="stat-lbl">Kola drukket</div><div class="stat-sub">dine</div></div>`;
+  row.innerHTML = html;
+}
+
 /* ---------- Leaderboards ---------- */
 function lbCard(title, emoji, valMap, opts){
   opts = opts || {};
@@ -508,6 +538,7 @@ async function refresh(){
   const funRows   = rows.filter(r => catOf(r.activity) === "fun");
   const tokenRows = rows.filter(r => catOf(r.activity) === "meta");
   renderStats(kpiRows, funRows, tokenRows);
+  renderMine(kpiRows, funRows, tokenRows);
   renderLeaderboards(kpiRows, funRows, tokenRows);
 }
 
