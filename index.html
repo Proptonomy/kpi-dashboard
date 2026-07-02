@@ -68,8 +68,10 @@
   .pill.green{background:var(--green-bg);color:var(--green)}
   .pill.yellow{background:var(--yellow-bg);color:var(--yellow)}
   .pill.blue{background:var(--blue-bg);color:var(--blue)}
-  .plus{width:24px;height:24px;border-radius:7px;background:#f1f1f8;display:grid;place-items:center;color:var(--muted);font-weight:700;font-size:15px}
+  .plus{width:26px;height:26px;border-radius:7px;background:#f1f1f8;display:grid;place-items:center;color:var(--muted);font-weight:700;font-size:16px;border:0;cursor:pointer;line-height:1;padding:0}
   .lg-row:hover .plus{background:var(--accent);color:#fff}
+  .minus{width:26px;height:26px;border-radius:7px;background:#f1f1f8;display:grid;place-items:center;color:var(--muted);font-weight:700;font-size:18px;border:0;cursor:pointer;line-height:1;padding:0}
+  .minus:hover{background:#e74c3c;color:#fff}
 
   .lbgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   @media(max-width:900px){.lbgrid{grid-template-columns:1fr}}
@@ -251,6 +253,7 @@ function renderLogGrid(){
       return `<div class="lg-row" data-label="${a.label}">
         <span class="lg-emoji">${a.emoji}</span>
         <span class="lg-name">${a.label}</span>${pill}
+        <button class="minus" data-label="${a.label}" title="Fjern siste">−</button>
         <span class="plus">+</span>
       </div>`;
     }).join("");
@@ -263,6 +266,7 @@ function renderLogGrid(){
       </div>`);
   });
   grid.querySelectorAll(".lg-row").forEach(el => el.onclick = () => logActivity(el.dataset.label));
+  grid.querySelectorAll(".minus").forEach(b => b.onclick = (e) => { e.stopPropagation(); removeActivity(b.dataset.label); });
 }
 
 async function logActivity(label){
@@ -275,7 +279,7 @@ async function insertRow(label, points, msg){
   const { data, error } = await sb.from("activities").insert({ person: me, activity: label, points }).select("id").single();
   if (error) return toast("Feil: " + error.message, { err: true });
   if (label === "Salg") celebrate();
-  toast(msg || `${emojiOf(label)} ${label} logget`, { undoId: data && data.id });
+  toast(msg || `${emojiOf(label)} ${label} logget`, { action: (data && data.id) ? () => undoRow(data.id) : null });
   refresh();
 }
 
@@ -303,22 +307,37 @@ function toast(msg, opts){
   const t = document.getElementById("toast");
   document.getElementById("toastMsg").textContent = msg;
   const btn = document.getElementById("toastAction");
-  if (opts.undoId){
+  if (opts.action){
     btn.style.display = "";
-    btn.onclick = () => { t.classList.remove("show"); clearTimeout(toastT); undoRow(opts.undoId); };
+    btn.textContent = opts.actionText || "Angre";
+    btn.onclick = () => { t.classList.remove("show"); clearTimeout(toastT); opts.action(); };
   } else {
     btn.style.display = "none";
   }
   t.style.background = opts.err ? "#e74c3c" : "var(--accent)";
   t.classList.add("show");
   clearTimeout(toastT);
-  toastT = setTimeout(() => t.classList.remove("show"), opts.undoId ? 6000 : 2600);
+  toastT = setTimeout(() => t.classList.remove("show"), opts.action ? 6000 : 2600);
 }
 async function undoRow(id){
   if (!id || !configured) return;
   const { error } = await sb.from("activities").delete().eq("id", id);
   if (error) return toast("Kunne ikke angre: " + error.message, { err: true });
   toast("↩️ Fjernet igjen");
+  refresh();
+}
+// Minus-knappen: fjern brukerens SISTE registrering av en aktivitet, med Angre (gjenopprett).
+async function removeActivity(label){
+  if (!me) return openPicker();
+  if (!configured) return toast("⚠️ Supabase ikke satt opp ennå", { err: true });
+  const { data, error } = await sb.from("activities").select("id,points")
+    .eq("person", me).eq("activity", label).order("created_at", { ascending: false }).limit(1);
+  if (error) return toast("Feil: " + error.message, { err: true });
+  if (!data || !data.length) return toast(`Ingen «${label}» å fjerne for ${me}`, { err: true });
+  const row = data[0];
+  const del = await sb.from("activities").delete().eq("id", row.id);
+  if (del.error) return toast("Kunne ikke fjerne: " + del.error.message, { err: true });
+  toast(`➖ ${label} fjernet`, { action: () => insertRow(label, row.points, `${emojiOf(label)} ${label} gjenopprettet`) });
   refresh();
 }
 function celebrate(){

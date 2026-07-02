@@ -20,9 +20,9 @@ alter table public.activities enable row level security;
 create policy "les alle"  on public.activities for select using (true);
 create policy "legg til"  on public.activities for insert with check (true);
 
--- Angre feilklikk: tillat sletting KUN av helt ferske rader (siste 15 min).
--- Beskytter historikk, men lar «Angre»-knappen fjerne nylige registreringer.
-create policy "angre nylig" on public.activities for delete using (created_at > now() - interval '15 minutes');
+-- Fjerning (minus-knappen + Angre): tillat sletting. Internt team-verktøy.
+-- Appen sletter kun én rad om gangen (brukerens egen siste registrering).
+create policy "slett" on public.activities for delete using (true);
 
 -- Sanntid: gjør at leaderboardet oppdateres straks noen logger noe.
 alter publication supabase_realtime add table public.activities;
