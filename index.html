@@ -145,7 +145,7 @@
 <div class="picker hidden" id="picker">
   <div class="box">
     <h3>Hvem er du?</h3>
-    <p>Velg navnet ditt. Vi husker det på denne PC-en.</p>
+    <p>Velg navnet ditt for å logge aktivitet.</p>
     <div id="pickerButtons"></div>
   </div>
 </div>
@@ -220,7 +220,7 @@ const initials = (n) => { const p = n.trim().split(/\s+/); return (p.length>1 ? 
 const avatar = (n) => `<span class="ava" style="background:${colorOf(n)}">${initials(n)}</span>`;
 const nf = (x) => x.toLocaleString("no-NO");
 
-let me = localStorage.getItem("kpi_me") || null;
+let me = null; // alltid velg person når siden åpnes
 
 /* ---------- Navn ---------- */
 function renderWho(){
@@ -233,7 +233,7 @@ function openPicker(){
     const b = document.createElement("button");
     b.className = "opt";
     b.innerHTML = `${avatar(name)} ${name}`;
-    b.onclick = () => { me = name; localStorage.setItem("kpi_me", name);
+    b.onclick = () => { me = name;
       document.getElementById("picker").classList.add("hidden"); renderWho(); refresh(); };
     box.appendChild(b);
   });
@@ -520,7 +520,7 @@ if (!configured){
   b.classList.remove("hidden");
   b.innerHTML = "⚙️ Nesten klar — lim inn <b>SUPABASE_URL</b> og <b>SUPABASE_ANON_KEY</b> øverst i filen (CONFIG).";
 }
-if (!me) openPicker();
+openPicker(); // vis alltid personvelgeren ved åpning
 if (configured){
   refresh();
   setInterval(refresh, 15000);
